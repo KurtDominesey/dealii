@@ -265,8 +265,15 @@ LAPACKFullMatrix<number>::LAPACKFullMatrix(const size_type m, const size_type n)
 template <typename number>
 LAPACKFullMatrix<number>::LAPACKFullMatrix(const LAPACKFullMatrix &M)
   : TransposeTable<number>(M)
-  , state(matrix)
-  , property(general)
+  , state(M.state)
+  , property(M.property),
+  , ipiv(M.ipiv)
+  , wr(M.wr)
+  , wi(M.wi)
+  , vl(M.vl)
+  , vr(M.vr)
+  , svd_u(svd_u)
+  , svd_vt(svd_vt)
 {}
 
 
@@ -278,6 +285,13 @@ LAPACKFullMatrix<number>::operator=(const LAPACKFullMatrix<number> &M)
   TransposeTable<number>::operator=(M);
   state                           = M.state;
   property                        = M.property;
+  ipiv                            = M.ipiv;
+  wr                              = M.wr;
+  wi                              = M.wi;
+  vl                              = M.vl;
+  vr                              = M.vr;
+  svd_u                           = M.svd_u;
+  svd_vt                          = M.svd_vt;
   return *this;
 }
 
