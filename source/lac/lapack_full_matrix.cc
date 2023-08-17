@@ -266,14 +266,16 @@ template <typename number>
 LAPACKFullMatrix<number>::LAPACKFullMatrix(const LAPACKFullMatrix &M)
   : TransposeTable<number>(M)
   , state(M.state)
-  , property(M.property),
+  , property(M.property)
   , ipiv(M.ipiv)
   , wr(M.wr)
   , wi(M.wi)
   , vl(M.vl)
   , vr(M.vr)
-  , svd_u(svd_u)
-  , svd_vt(svd_vt)
+  , svd_u(M.svd_u ? std::make_unique<LAPACKFullMatrix<number>>(*M.svd_u)
+                  : nullptr)
+  , svd_vt(M.svd_vt ? std::make_unique<LAPACKFullMatrix<number>>(*M.svd_vt)
+                    : nullptr)
 {}
 
 
@@ -290,8 +292,10 @@ LAPACKFullMatrix<number>::operator=(const LAPACKFullMatrix<number> &M)
   wi                              = M.wi;
   vl                              = M.vl;
   vr                              = M.vr;
-  svd_u                           = M.svd_u;
-  svd_vt                          = M.svd_vt;
+  svd_u = M.svd_u ? std::make_unique<LAPACKFullMatrix<number>>(*M.svd_u) 
+                  : nullptr;
+  svd_vt = M.svd_vt ? std::make_unique<LAPACKFullMatrix<number>>(*M.svd_vt)
+                    : nullptr;
   return *this;
 }
 
