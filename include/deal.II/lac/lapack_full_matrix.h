@@ -790,14 +790,15 @@ public:
    * V^T. Sigma is a MxN matrix which contains the singular values of A on
    * the diagonal while all the other elements are zero. U is a MxM orthogonal
    * matrix containing the left singular vectors corresponding to the singular
-   * values of A. V is a NxN orthonal matrix containing the right singular
+   * values of A. V is a NxN orthogonal matrix containing the right singular
    * vectors corresponding the singular values of A.
    *
    * Note that the variable #svd_vt contains the tranpose of V and can be
-   * accessed by get_svd_vt(), while U is accessed with get_svd_u().
+   * accessed by get_svd_vt(), while U is accessed with get_svd_u(). If @p full 
+   * is set to false, only the first min(M,N) columns of U and V are computed.
    */
   void
-  compute_svd();
+  compute_svd(const bool full = true);
 
   /**
    * Compute the inverse of the matrix by singular value decomposition.
@@ -816,17 +817,18 @@ public:
    * be considered zero. It is the ratio of the smallest to the largest
    * nonzero singular value $s_{max}$. Thus, the inverses of all
    * singular values less than  $s_{max}/\rm{threshold}$ will
-   * be set to zero.
+   * be set to zero. If @p full is set to false, only the first min(M,N) columns
+   * of U and V are computed.
    */
   void
-  compute_inverse_svd(const double threshold = 0.);
+  compute_inverse_svd(const double threshold = 0., const bool full = true);
 
   /**
    * Same as above but provide the size of the kernel instead of a threshold,
    * i.e. the @p kernel_size smallest eigenvalues.
    */
   void
-  compute_inverse_svd_with_kernel(const unsigned int kernel_size);
+  compute_inverse_svd_with_kernel(const unsigned int kernel_size, const bool full = true);
 
   /**
    * Retrieve eigenvalue after compute_eigenvalues() was called. The return

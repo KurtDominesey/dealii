@@ -186,7 +186,7 @@ namespace internal
             left_vectors.data(),
             &n_rows,
             right_vectors.data(),
-            &n_cols,
+            job == 'S' && n_rows < n_cols ? &n_rows : &n_cols,
             real_work.data(),
             &work_flag,
             integer_work.data(),
@@ -232,7 +232,7 @@ namespace internal
             left_vectors.data(),
             &n_rows,
             right_vectors.data(),
-            &n_cols,
+            job == 'S' && n_rows < n_cols ? &n_rows : &n_cols,
             work.data(),
             &work_flag,
             real_work.data(),
@@ -739,14 +739,16 @@ LAPACKFullMatrix<number>::vmult(Vector<number> &      w,
           std::lock_guard<std::mutex> lock(mutex);
           AssertDimension(v.size(), this->n());
           AssertDimension(w.size(), this->m());
+          const types::blas_int k    = std::min(mm, nn);
+          const types::blas_int ldvt = svd_vt->m();
           // Compute V^T v
           work.resize(std::max(mm, nn));
           gemv("N",
-               &nn,
+               &k,
                &nn,
                &alpha,
                svd_vt->values.data(),
-               &nn,
+               &ldvt,
                v.data(),
                &one,
                &null,
@@ -758,7 +760,7 @@ LAPACKFullMatrix<number>::vmult(Vector<number> &      w,
           // Multiply with U
           gemv("N",
                &mm,
-               &mm,
+               &k,
                &alpha,
                svd_u->values.data(),
                &mm,
@@ -774,11 +776,13 @@ LAPACKFullMatrix<number>::vmult(Vector<number> &      w,
           std::lock_guard<std::mutex> lock(mutex);
           AssertDimension(w.size(), this->n());
           AssertDimension(v.size(), this->m());
+          const types::blas_int k    = std::min(mm, nn);
+          const types::blas_int ldvt = svd_vt->m();
           // Compute U^T v
           work.resize(std::max(mm, nn));
           gemv("T",
                &mm,
-               &mm,
+               &k,
                &alpha,
                svd_u->values.data(),
                &mm,
@@ -792,11 +796,11 @@ LAPACKFullMatrix<number>::vmult(Vector<number> &      w,
             work[i] *= wr[i];
           // Multiply with V
           gemv("T",
-               &nn,
+               &k,
                &nn,
                &alpha,
                svd_vt->values.data(),
-               &nn,
+               &ldvt,
                work.data(),
                &one,
                &beta,
@@ -876,12 +880,14 @@ LAPACKFullMatrix<number>::Tvmult(Vector<number> &      w,
           std::lock_guard<std::mutex> lock(mutex);
           AssertDimension(w.size(), this->n());
           AssertDimension(v.size(), this->m());
+          const types::blas_int k    = std::min(mm, nn);
+          const types::blas_int ldvt = svd_vt->m();
 
           // Compute U^T v
           work.resize(std::max(mm, nn));
           gemv("T",
                &mm,
-               &mm,
+               &k,
                &alpha,
                svd_u->values.data(),
                &mm,
@@ -895,11 +901,11 @@ LAPACKFullMatrix<number>::Tvmult(Vector<number> &      w,
             work[i] *= wr[i];
           // Multiply with V
           gemv("T",
-               &nn,
+               &k,
                &nn,
                &alpha,
                svd_vt->values.data(),
-               &nn,
+               &ldvt,
                work.data(),
                &one,
                &beta,
@@ -912,15 +918,17 @@ LAPACKFullMatrix<number>::Tvmult(Vector<number> &      w,
           std::lock_guard<std::mutex> lock(mutex);
           AssertDimension(v.size(), this->n());
           AssertDimension(w.size(), this->m());
+          const types::blas_int k    = std::min(mm, nn);
+          const types::blas_int ldvt = svd_vt->m();
 
           // Compute V^T v
           work.resize(std::max(mm, nn));
           gemv("N",
-               &nn,
+               &k,
                &nn,
                &alpha,
                svd_vt->values.data(),
-               &nn,
+               &ldvt,
                v.data(),
                &one,
                &null,
@@ -932,7 +940,7 @@ LAPACKFullMatrix<number>::Tvmult(Vector<number> &      w,
           // Multiply with U
           gemv("N",
                &mm,
-               &mm,
+               &k,
                &alpha,
                svd_u->values.data(),
                &mm,
@@ -1614,19 +1622,21 @@ LAPACKFullMatrix<number>::reciprocal_condition_number() const
 
 template <typename number>
 void
-LAPACKFullMatrix<number>::compute_svd()
+LAPACKFullMatrix<number>::compute_svd(const bool full)
 {
   Assert(state == matrix, ExcState(state));
   state = LAPACKSupport::unusable;
 
   const types::blas_int mm = this->m();
   const types::blas_int nn = this->n();
+  const types::blas_int k = std::min(mm, nn);
   wr.resize(std::max(mm, nn));
   std::fill(wr.begin(), wr.end(), 0.);
   ipiv.resize(8 * mm);
 
-  svd_u                = std::make_unique<LAPACKFullMatrix<number>>(mm, mm);
-  svd_vt               = std::make_unique<LAPACKFullMatrix<number>>(nn, nn);
+  const char job = full ? A : S;
+  svd_u  = std::make_unique<LAPACKFullMatrix<number>>(mm, full ? mm : k);
+  svd_vt = std::make_unique<LAPACKFullMatrix<number>>(full ? nn : k, nn);
   types::blas_int info = 0;
 
   // First determine optimal workspace size
@@ -1647,7 +1657,7 @@ LAPACKFullMatrix<number>::compute_svd()
   // make sure that the first entry in the work array is clear, in case the
   // routine does not completely overwrite the memory:
   work[0] = number();
-  internal::LAPACKFullMatrixImplementation::gesdd_helper(LAPACKSupport::A,
+  internal::LAPACKFullMatrixImplementation::gesdd_helper(job,
                                                          mm,
                                                          nn,
                                                          this->values,
@@ -1667,7 +1677,7 @@ LAPACKFullMatrix<number>::compute_svd()
 
   work.resize(lwork);
   // Do the actual SVD.
-  internal::LAPACKFullMatrixImplementation::gesdd_helper(LAPACKSupport::A,
+  internal::LAPACKFullMatrixImplementation::gesdd_helper(job,
                                                          mm,
                                                          nn,
                                                          this->values,
@@ -1691,10 +1701,10 @@ LAPACKFullMatrix<number>::compute_svd()
 
 template <typename number>
 void
-LAPACKFullMatrix<number>::compute_inverse_svd(const double threshold)
+LAPACKFullMatrix<number>::compute_inverse_svd(const double threshold, const bool full)
 {
   if (state == LAPACKSupport::matrix)
-    compute_svd();
+    compute_svd(full);
 
   Assert(state == LAPACKSupport::svd, ExcState(state));
 
@@ -1715,10 +1725,10 @@ LAPACKFullMatrix<number>::compute_inverse_svd(const double threshold)
 template <typename number>
 void
 LAPACKFullMatrix<number>::compute_inverse_svd_with_kernel(
-  const unsigned int kernel_size)
+  const unsigned int kernel_size, const bool full)
 {
   if (state == LAPACKSupport::matrix)
-    compute_svd();
+    compute_svd(full);
 
   Assert(state == LAPACKSupport::svd, ExcState(state));
 
