@@ -42,7 +42,7 @@ const double rect[3][4] = {{4., 3., 2., 1.},
 
 
 void
-test_rect(unsigned int m, unsigned int n, const double *values)
+test_rect(unsigned int m, unsigned int n, const double *values, const bool full)
 {
   std::ostringstream prefix;
   prefix << m << 'x' << n;
@@ -51,7 +51,7 @@ test_rect(unsigned int m, unsigned int n, const double *values)
   FullMatrix<double>       A(m, n, values);
   LAPACKFullMatrix<double> LA(m, n);
   LA = A;
-  LA.compute_svd();
+  LA.compute_svd(full);
 
   deallog << "Singular values";
   for (unsigned int i = 0; i < LA.n_rows(); ++i)
@@ -111,9 +111,12 @@ main()
   initlog();
   deallog.get_file_stream().precision(3);
 
-  test_rect(4, 4, &symm[0][0]);
-  test_rect(4, 3, &rect[0][0]);
-  test_rect(3, 4, &rect[0][0]);
+  for (const bool full : {true, false}) {
+    deallog << (full ? "Full" : "Thin") << " SVD" << std::endl;
+    test_rect(4, 4, &symm[0][0], full);
+    test_rect(4, 3, &rect[0][0], full);
+    test_rect(3, 4, &rect[0][0], full);
+  }
 
   // Test symmetric system
   FullMatrix<double>       A(4, 4, &symm[0][0]);
